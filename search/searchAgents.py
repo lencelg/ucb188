@@ -296,14 +296,15 @@ class CornersProblem(search.SearchProblem):
         space)
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        return (self.startingPosition, 0)
 
     def isGoalState(self, state: Any):
         """
         Returns whether this search state is a goal state of the problem.
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        _, mask= state
+        return mask == (1 << 4) - 1
 
     def getSuccessors(self, state: Any):
         """
@@ -317,6 +318,7 @@ class CornersProblem(search.SearchProblem):
         """
 
         successors = []
+        current_position, visited_mask = state
         for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
             # Add a successor state to the successor list if the action is legal
             # Here's a code snippet for figuring out whether a new position hits a wall:
@@ -324,8 +326,16 @@ class CornersProblem(search.SearchProblem):
             #   dx, dy = Actions.directionToVector(action)
             #   nextx, nexty = int(x + dx), int(y + dy)
             #   hitsWall = self.walls[nextx][nexty]
-
-            "*** YOUR CODE HERE ***"
+            dx, dy = Actions.directionToVector(action)
+            nextx, nexty = int(current_position[0] + dx), int(current_position[1] + dy)
+            if self.walls[nextx][nexty]:
+                continue
+            new_mask = visited_mask
+            if (nextx, nexty) in self.corners:
+                corner_index = self.corners.index((nextx, nexty))
+                new_mask |= (1 << corner_index)
+            successor_state = ((nextx, nexty), new_mask)
+            successors.append((successor_state, action, 1))
 
         self._expanded += 1 # DO NOT CHANGE
         return successors
@@ -362,7 +372,41 @@ def cornersHeuristic(state: Any, problem: CornersProblem):
     walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
 
     "*** YOUR CODE HERE ***"
-    return 0 # Default to trivial solution
+    current_pos, visited_mask = state
+
+    unvisited = []
+    for i, corner in enumerate(corners):
+        if not (visited_mask >> i) & 1:
+            unvisited.append(corner)
+
+    if not unvisited:
+        return 0
+
+    if len(unvisited) == 1:
+        return abs(current_pos[0] - unvisited[0][0]) + abs(current_pos[1] - unvisited[0][1])
+
+    nodes = [current_pos] + unvisited
+    n = len(nodes)
+    dist = [[0]*n for _ in range(n)]
+    for i in range(n):
+        for j in range(i+1, n):
+            d = abs(nodes[i][0]-nodes[j][0]) + abs(nodes[i][1]-nodes[j][1])
+            dist[i][j] = dist[j][i] = d
+    visited_nodes = [False]*n
+    min_edge = [float('inf')]*n
+    min_edge[0] = 0  
+    total = 0
+    for _ in range(n):
+        u = -1
+        for i in range(n):
+            if not visited_nodes[i] and (u == -1 or min_edge[i] < min_edge[u]):
+                u = i
+        visited_nodes[u] = True
+        total += min_edge[u]
+        for v in range(n):
+            if not visited_nodes[v] and dist[u][v] < min_edge[v]:
+                min_edge[v] = dist[u][v]
+    return total
 
 
 
@@ -453,7 +497,37 @@ def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
     """
     position, foodGrid = state
     "*** YOUR CODE HERE ***"
-    return 0
+    foods = foodGrid.asList()
+    
+    if not foods:
+        return 0
+    
+    nodes = [position] + foods
+    n = len(nodes)
+    
+    dist = [[0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            d = abs(nodes[i][0] - nodes[j][0]) + abs(nodes[i][1] - nodes[j][1])
+            dist[i][j] = dist[j][i] = d
+    
+    visited = [False] * n
+    min_edge = [float('inf')] * n
+    min_edge[0] = 0
+    mst_cost = 0
+    
+    for _ in range(n):
+        u = -1
+        for i in range(n):
+            if not visited[i] and (u == -1 or min_edge[i] < min_edge[u]):
+                u = i
+        visited[u] = True
+        mst_cost += min_edge[u]
+        for v in range(n):
+            if not visited[v] and dist[u][v] < min_edge[v]:
+                min_edge[v] = dist[u][v]
+    
+    return mst_cost
 
 
 class ClosestDotSearchAgent(SearchAgent):
@@ -485,7 +559,8 @@ class ClosestDotSearchAgent(SearchAgent):
         problem = AnyFoodSearchProblem(gameState)
 
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        from search import breadthFirstSearch
+        return breadthFirstSearch(problem)
 
 class AnyFoodSearchProblem(PositionSearchProblem):
     """
@@ -521,7 +596,7 @@ class AnyFoodSearchProblem(PositionSearchProblem):
         x,y = state
 
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        return self.food[x][y]
 
 def mazeDistance(point1: Tuple[int, int], point2: Tuple[int, int], gameState: pacman.GameState) -> int:
     """
